@@ -1,0 +1,146 @@
+/* Basic Reset and Body Styling */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --tron-cyan: #00ffff;
+  --tron-cyan-glow: rgba(0, 255, 255, 0.7);
+  --tron-bg: #050810; /* Even darker background */
+  --tron-bg-secondary: rgba(0, 0, 0, 0.6); /* Control/Container background */
+  --tron-border: #00ffff;
+  --tron-text: #00ffff;
+  --tron-text-darker: #00aaaa; /* For less emphasis */
+}
+
+body {
+  font-family: "Consolas", "Courier New", Courier, monospace; /* More TRON-like font if available */
+  background-color: var(--tron-bg);
+  color: var(--tron-text);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Align container to top */
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  text-align: center;
+  width: 90%;
+  max-width: 800px; /* Limit max width */
+  padding: 25px;
+  border: 1px solid var(--tron-border);
+  box-shadow: 0 0 20px var(--tron-cyan-glow); /* Enhanced glow */
+  background-color: var(--tron-bg-secondary);
+  border-radius: 5px; /* Slightly rounded corners */
+}
+
+h1 {
+  margin-bottom: 25px;
+  text-shadow: 0 0 10px var(--tron-cyan-glow), 0 0 20px var(--tron-cyan-glow); /* Stronger glow */
+  letter-spacing: 2px; /* Add some spacing */
+  font-weight: normal;
+}
+
+/* Controls Styling */
+.controls {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  justify-content: center;
+  gap: 15px; /* Spacing between controls */
+  align-items: center;
+}
+
+.controls label {
+  margin-right: 5px;
+  color: var(--tron-text-darker); /* Slightly less prominent label */
+  font-size: 0.9em;
+}
+
+.controls input[type="number"],
+.controls button {
+  background-color: var(--tron-bg);
+  color: var(--tron-text);
+  border: 1px solid var(--tron-border);
+  padding: 8px 12px;
+  font-family: inherit; /* Use the body's font */
+  border-radius: 3px;
+  transition: box-shadow 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.controls input[type="number"] {
+  width: 75px; /* Slightly wider */
+}
+
+.controls input[type="number"]:focus,
+.controls button:focus {
+  outline: none;
+  box-shadow: 0 0 10px var(--tron-cyan-glow);
+}
+
+.controls button {
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background-color: var(--tron-cyan);
+  color: var(--tron-bg);
+  box-shadow: 0 0 15px var(--tron-cyan-glow);
+}
+
+/* Grid Container Styling */
+#grid-container {
+  margin: 25px auto; /* Center the grid */
+  display: grid; /* Use CSS Grid for the cells */
+  /* Grid columns/rows will be set by JavaScript */
+  border: 1px solid var(--tron-border);
+  box-shadow: 0 0 10px var(--tron-cyan-glow); /* Add glow to grid border */
+  /* Dimensions will be set based on cell size and count */
+  width: fit-content; /* Adjust width to content */
+  height: fit-content; /* Adjust height to content */
+  background-color: var(--tron-bg); /* Background for the grid area itself */
+}
+
+/* Individual Cell Styling */
+.cell {
+  /* Dimensions will be set by JS or kept small */
+  width: 15px; /* Example size, might be adjusted */
+  height: 15px; /* Example size, might be adjusted */
+  border: 1px solid rgba(0, 255, 255, 0.1); /* Faint grid lines */
+  transition: background-color 0.3s ease; /* Smooth transition for state change */
+}
+
+.cell.dead {
+  background-color: transparent; /* Or var(--tron-bg) if preferred */
+}
+
+.cell.live {
+  background-color: var(--tron-cyan);
+  box-shadow: 0 0 5px var(--tron-cyan-glow),
+    inset 0 0 3px rgba(255, 255, 255, 0.5); /* Glow + inner highlight */
+}
+
+.cell.newly-alive {
+  background-color: #ffffff; /* Bright white for the first frame */
+  box-shadow: 0 0 2px #ffffff, 0 0 15px var(--tron-cyan-glow),
+    inset 0 0 4px rgba(255, 255, 255, 0.8); /* Brighter glow */
+}
+
+/* Info Area */
+.info {
+  margin-top: 20px;
+  font-size: 0.9em;
+}
+
+/* Background Canvas Styling */
+#backgroundCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1; /* Place it behind other content */
+}

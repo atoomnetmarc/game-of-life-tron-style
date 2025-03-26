@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game of Life - TRON</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="backgroundCanvas"></canvas>
+    <div class="container">
+      <h1>Game of Life - TRON Style</h1>
+
+      <div class="controls">
+        <label for="gridWidthInput">Grid Width (X):</label>
+        <input
+          type="number"
+          id="gridWidthInput"
+          name="gridWidthInput"
+          value="42"
+          min="4"
+          max="100"
+        />
+
+        <label for="gridHeightInput">Grid Height (Y):</label>
+        <input
+          type="number"
+          id="gridHeightInput"
+          name="gridHeightInput"
+          value="32"
+          min="4"
+          max="100"
+        />
+
+        <label for="speedInput">Speed (ms):</label>
+        <input
+          type="number"
+          id="speedInput"
+          name="speedInput"
+          value="500"
+          min="50"
+          step="50"
+        />
+
+        <button id="startPauseButton">Start</button>
+        <button id="stepButton">Step</button>
+        <button id="resetButton">Randomize</button>
+        <button id="clearButton">Clear</button>
+      </div>
+
+      <div id="grid-container">
+        <!-- Grid will be generated here by JavaScript -->
+      </div>
+
+      <div class="info">
+        <!-- Info like generation count can go here -->
+        <p>Generation: <span id="generationCount">0</span></p>
+        <p>Alive: <span id="alivePercentage">0.0</span>%</p>
+      </div>
+    </div>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>

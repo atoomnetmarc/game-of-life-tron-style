@@ -1,0 +1,28 @@
+# Game of Life - Development TODO List
+
+- [x] Set up basic HTML structure (`index.html`).
+- [x] Create main container and grid placeholder in HTML.
+- [x] Add control elements (inputs for size/speed, buttons for Start/Pause, Step, Reset) in HTML.
+- [x] Implement basic CSS (`style.css`) for layout (e.g., centering content, basic grid display).
+- [x] Implement TRON aesthetic in CSS (dark background, base styles).
+- [x] Style grid lines and cells (dead/live states) with glowing effect in CSS.
+- [x] Style control elements (buttons, inputs) to match the TRON theme in CSS.
+- [x] Set up JavaScript structure (`script.js`) with necessary constants and initial state variables.
+- [x] Implement state management variables (grid array, size, speed, isRunning flag, interval ID).
+- [x] Implement `createGrid(size)` function to initialize the grid state (e.g., empty or random).
+- [x] Implement `countNeighbors(x, y)` function with toroidal boundary wrapping logic.
+- [x] Implement `computeNextGeneration()` function applying Conway's rules to generate the next grid state.
+- [x] Implement `updateGridState()` function to replace the current grid with the next generation's grid.
+- [x] Implement `renderGrid()` function to draw/update the grid in the HTML based on the grid state.
+- [x] Implement event listener for the Start/Pause button to toggle simulation.
+- [x] Implement event listener for the Step button to advance one generation manually.
+- [x] Implement event listener for the Reset button (e.g., randomize grid).
+- [x] Implement event listeners for size configuration input (update grid size, reset state, re-render).
+- [x] Implement event listeners for speed configuration input (update simulation interval).
+- [x] Implement cell clicking functionality to toggle cell state when the simulation is paused.
+- [x] Add generation counter display and update logic (optional but nice).
+- [ ] Refine CSS styling, responsiveness, and visual effects.
+- [x] Refactor grid size configuration to allow separate X and Y dimensions (default 42x32).
+- [x] Add JSDoc comments to all JavaScript functions as per `CODING.md`.
+- [ ] Perform final testing across different browsers and scenarios.
+- [ ] Debug any identified issues.
