@@ -4,10 +4,11 @@
 const DEFAULT_WIDTH = 42;
 const DEFAULT_HEIGHT = 32;
 const DEFAULT_SPEED = 500; // milliseconds
-const CELL_SIZE_PX = 15; // Pixel size for each cell in the grid display
+// Removed CELL_SIZE_PX constant
 
 // DOM Elements
 const gridContainer = document.getElementById("grid-container");
+const mainContainer = document.querySelector(".container"); // Get the main container
 const gridWidthInput = document.getElementById("gridWidthInput");
 const gridHeightInput = document.getElementById("gridHeightInput");
 const speedInput = document.getElementById("speedInput");
@@ -16,6 +17,11 @@ const stepButton = document.getElementById("stepButton");
 const resetButton = document.getElementById("resetButton");
 const generationCountDisplay = document.getElementById("generationCount");
 const alivePercentageDisplay = document.getElementById("alivePercentage"); // Added for alive percentage
+// Elements needed for height calculation
+const titleElement = document.querySelector(".container h1");
+const controlsElement = document.querySelector(".controls");
+const infoElement = document.querySelector(".info");
+const bodyElement = document.body; // Get body element
 
 // State Variables
 let gridWidth = DEFAULT_WIDTH;
@@ -25,6 +31,8 @@ let isRunning = false;
 let simulationSpeed = DEFAULT_SPEED;
 let intervalId = null; // To store the ID from setInterval
 let generationCount = 0;
+let isPainting = false; // Track if the user is currently painting cells
+let paintingState = 0; // 0 for painting dead, 1 for painting alive
 
 // --- Function Definitions Will Go Here ---
 
@@ -78,11 +86,68 @@ function setupEventListeners() {
 
   speedInput.addEventListener("change", handleSpeedChange);
 
-  // Use event delegation for cell clicks
-  gridContainer.addEventListener("click", handleCellClick);
+  // Event listeners for painting cells (replaces simple click)
+  gridContainer.addEventListener("mousedown", handlePointerDown);
+  gridContainer.addEventListener("mousemove", handlePointerMove);
+  window.addEventListener("mouseup", handlePointerUp); // Listen on window to catch mouseup outside grid
+  gridContainer.addEventListener("touchstart", handlePointerDown, { passive: false }); // Use passive: false to allow preventDefault
+  gridContainer.addEventListener("touchmove", handlePointerMove, { passive: false });
+  window.addEventListener("touchend", handlePointerUp); // Listen on window for touchend
+
+  // Add window resize listener to adjust grid appearance dynamically
+  window.addEventListener('resize', updateGridAppearance);
 
   console.log("Event listeners attached.");
+
+  // Add wheel event listeners for number inputs
+  gridWidthInput.addEventListener("wheel", (e) => handleInputWheel(e, gridWidthInput));
+  gridHeightInput.addEventListener("wheel", (e) => handleInputWheel(e, gridHeightInput));
+  speedInput.addEventListener("wheel", (e) => handleInputWheel(e, speedInput));
 }
+
+/**
+ * Handles the mouse wheel event on number input fields to increment/decrement the value.
+ * @param {WheelEvent} event The wheel event object.
+ * @param {HTMLInputElement} inputElement The input element being scrolled upon.
+ */
+function handleInputWheel(event, inputElement) {
+  event.preventDefault(); // Prevent page scrolling
+
+  const currentValue = parseFloat(inputElement.value);
+  const step = parseFloat(inputElement.step) || 1; // Use step attribute or default to 1
+  const min = parseFloat(inputElement.min);
+  const max = parseFloat(inputElement.max);
+
+  let newValue;
+
+  // Determine scroll direction and calculate new value
+  if (event.deltaY < 0) {
+    // Scrolling up (increment)
+    newValue = currentValue + step;
+  } else {
+    // Scrolling down (decrement)
+    newValue = currentValue - step;
+  }
+
+  // Clamp the value within min/max bounds if they exist
+  if (!isNaN(min) && newValue < min) {
+    newValue = min;
+  }
+  if (!isNaN(max) && newValue > max) {
+    newValue = max;
+  }
+
+  // Update the input value only if it changed
+  if (newValue !== currentValue) {
+    inputElement.value = newValue;
+
+    // Manually trigger the 'change' event to ensure handlers like
+    // handleSizeChange or handleSpeedChange are called
+    const changeEvent = new Event("change", { bubbles: true });
+    inputElement.dispatchEvent(changeEvent);
+  }
+}
+
 
 // --- Main Execution ---
 // Wait for the DOM to be fully loaded before initializing
@@ -110,6 +175,79 @@ function createGrid(width, height) {
 }
 
 /**
+ * Resizes the grid while preserving the existing cell states centered.
+ * Fills new areas with dead cells.
+ * Updates the global `grid`, `gridWidth`, and `gridHeight` variables.
+ * @param {number} newWidth - The new width of the grid.
+ * @param {number} newHeight - The new height of the grid.
+ */
+function resizeGrid(newWidth, newHeight) {
+  console.log(`Resizing grid from ${gridWidth}x${gridHeight} to ${newWidth}x${newHeight}`);
+  const oldGrid = grid;
+  const oldWidth = gridWidth;
+  const oldHeight = gridHeight;
+
+  // Create the new grid, initialized with dead cells (0)
+  const newGrid = [];
+  for (let y = 0; y < newHeight; y++) {
+    newGrid[y] = Array(newWidth).fill(0);
+  }
+
+  // Calculate offsets to center the old grid within the new grid
+  // When shrinking, negative offset means we start copying from a later index in the old grid
+  // When expanding, positive offset means we start copying into a later index in the new grid
+  const deltaWidth = newWidth - oldWidth;
+  const deltaHeight = newHeight - oldHeight;
+
+  // Calculate offsetX: Alternate floor/ceil for odd delta based on oldWidth parity
+  let offsetX;
+  if (deltaWidth % 2 !== 0 && oldWidth % 2 === 0) { // Odd change, even original width
+      offsetX = Math.ceil(deltaWidth / 2);
+  } else { // Even change OR (odd change and odd original width)
+      offsetX = Math.floor(deltaWidth / 2);
+  }
+
+  // Calculate offsetY: Alternate floor/ceil for odd delta based on oldHeight parity
+  let offsetY;
+  if (deltaHeight % 2 !== 0 && oldHeight % 2 === 0) { // Odd change, even original height
+      offsetY = Math.ceil(deltaHeight / 2);
+  } else { // Even change OR (odd change and odd original height)
+      offsetY = Math.floor(deltaHeight / 2);
+  }
+
+  // Determine the copy boundaries
+  const copyStartX = Math.max(0, -offsetX); // Start X in old grid
+  const copyStartY = Math.max(0, -offsetY); // Start Y in old grid
+  const copyEndX = Math.min(oldWidth, newWidth - offsetX); // End X in old grid (exclusive)
+  const copyEndY = Math.min(oldHeight, newHeight - offsetY); // End Y in old grid (exclusive)
+
+  const pasteStartX = Math.max(0, offsetX); // Start X in new grid
+  const pasteStartY = Math.max(0, offsetY); // Start Y in new grid
+
+  // Copy the relevant part of the old grid to the new grid
+  for (let oldY = copyStartY; oldY < copyEndY; oldY++) {
+    for (let oldX = copyStartX; oldX < copyEndX; oldX++) {
+        const newX = oldX + offsetX;
+        const newY = oldY + offsetY;
+        // Ensure we are within the bounds of the new grid (should be guaranteed by copyEnd calculations)
+        if (newX >= 0 && newX < newWidth && newY >= 0 && newY < newHeight) {
+            if (oldGrid[oldY] && oldGrid[oldY][oldX] !== undefined) {
+                newGrid[newY][newX] = oldGrid[oldY][oldX];
+            }
+        }
+    }
+  }
+
+
+  // Update global state
+  grid = newGrid;
+  gridWidth = newWidth;
+  gridHeight = newHeight;
+  // Do NOT reset generationCount, allow simulation state to persist through resize
+  console.log(`Resized grid to ${gridWidth}x${gridHeight}.`);
+}
+
+/**
  * Renders the current grid state to the DOM.
  * Clears the existing grid and creates new cell elements.
  * Sets CSS variables for grid dimensions.
@@ -120,12 +258,10 @@ function renderGrid(prevGrid = null) {
   // Clear previous grid content
   gridContainer.innerHTML = "";
 
-  // Set grid dimensions using CSS Grid
-  gridContainer.style.gridTemplateColumns = `repeat(${gridWidth}, ${CELL_SIZE_PX}px)`;
-  gridContainer.style.gridTemplateRows = `repeat(${gridHeight}, ${CELL_SIZE_PX}px)`;
+  // Grid dimensions (columns/rows) are now set in updateGridAppearance()
   // Optional: Adjust container size explicitly if fit-content isn't perfect
-  // gridContainer.style.width = `${gridWidth * CELL_SIZE_PX}px`;
-  // gridContainer.style.height = `${gridHeight * CELL_SIZE_PX}px`;
+  // gridContainer.style.width = `${gridWidth * cellSize}px`; // Note: cellSize would need to be passed or accessed globally
+  // gridContainer.style.height = `${gridHeight * cellSize}px`;
 
   // Create and append cell elements
   for (let y = 0; y < gridHeight; y++) {
@@ -133,9 +269,11 @@ function renderGrid(prevGrid = null) {
       const cell = document.createElement("div");
       cell.classList.add("cell");
 
-      const currentState = grid[y][x];
+      // Check if grid[y] and grid[y][x] exist before accessing
+      const currentState = grid[y]?.[x]; // Use optional chaining
       const previousState = prevGrid?.[y]?.[x]; // Safely access previous state
 
+      // Handle potential undefined currentState if grid structure is unexpected
       if (currentState === 1) {
         cell.classList.add("live");
         // Check if it was dead in the previous step
@@ -143,6 +281,7 @@ function renderGrid(prevGrid = null) {
           cell.classList.add("newly-alive");
         }
       } else {
+        // Default to dead if currentState is 0 or undefined
         cell.classList.add("dead");
       }
 
@@ -158,7 +297,8 @@ function renderGrid(prevGrid = null) {
   let aliveCount = 0;
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
-      if (grid[y][x] === 1) {
+      // Check if grid[y] and grid[y][x] exist before accessing
+      if (grid[y]?.[x] === 1) { // Use optional chaining
         aliveCount++;
       }
     }
@@ -168,7 +308,76 @@ function renderGrid(prevGrid = null) {
   if (alivePercentageDisplay) {
     alivePercentageDisplay.textContent = percentage;
   }
+
+  // Update grid appearance based on container size and grid dimensions
+  updateGridAppearance();
 }
+
+/**
+ * Calculates and applies the optimal cell size based on available container space.
+ * Updates grid container styles and individual cell dimensions.
+ */
+function updateGridAppearance() {
+  if (!gridContainer || !mainContainer || gridWidth <= 0 || gridHeight <= 0) {
+    console.warn("Cannot update grid appearance: Missing elements or invalid grid dimensions.");
+    return;
+  }
+
+  // Get container dimensions and padding
+  const containerStyle = window.getComputedStyle(mainContainer);
+  const containerPaddingX = parseFloat(containerStyle.paddingLeft) + parseFloat(containerStyle.paddingRight);
+  const containerPaddingY = parseFloat(containerStyle.paddingTop) + parseFloat(containerStyle.paddingBottom);
+
+  // Get available space within the container (excluding padding)
+  // Use clientWidth/clientHeight which includes padding, then subtract it
+  const availableWidth = mainContainer.clientWidth - containerPaddingX;
+
+  // Calculate available height more accurately by subtracting heights of sibling elements
+  let nonGridElementsHeight = 0;
+  [titleElement, controlsElement, infoElement].forEach(el => {
+    if (el) {
+      const style = window.getComputedStyle(el);
+      nonGridElementsHeight += el.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+    }
+  });
+
+  // Also consider the grid container's own margins if any (though it's set to auto horizontally)
+  const gridStyle = window.getComputedStyle(gridContainer);
+  nonGridElementsHeight += parseFloat(gridStyle.marginTop) + parseFloat(gridStyle.marginBottom);
+
+  // Calculate available height based on viewport, subtracting body/container padding and non-grid elements
+  const bodyStyle = window.getComputedStyle(bodyElement);
+  const bodyPaddingY = parseFloat(bodyStyle.paddingTop) + parseFloat(bodyStyle.paddingBottom);
+  const totalPaddingY = bodyPaddingY + containerPaddingY;
+
+  const availableHeight = window.innerHeight - totalPaddingY - nonGridElementsHeight;
+
+
+  // Calculate max cell size based on width and height constraints
+  const maxCellWidth = Math.floor(availableWidth / gridWidth);
+  const maxCellHeight = Math.floor(availableHeight / gridHeight);
+
+
+  // Use the smaller dimension to ensure the grid fits
+  let cellSize = Math.max(1, Math.min(maxCellWidth, maxCellHeight)); // Ensure at least 1px
+
+
+  // Apply the calculated size
+  gridContainer.style.gridTemplateColumns = `repeat(${gridWidth}, ${cellSize}px)`;
+  gridContainer.style.gridTemplateRows = `repeat(${gridHeight}, ${cellSize}px)`;
+
+  // Update individual cell elements (important if they have fixed sizes in CSS)
+  const cells = gridContainer.querySelectorAll('.cell');
+  cells.forEach(cell => {
+    cell.style.width = `${cellSize}px`;
+    cell.style.height = `${cellSize}px`;
+  });
+
+  // Optional: Adjust container size explicitly if fit-content isn't perfect
+  // gridContainer.style.width = `${gridWidth * cellSize}px`;
+  // gridContainer.style.height = `${gridHeight * cellSize}px`;
+}
+
 
 /**
  * Handles the reset button click.
@@ -180,7 +389,10 @@ function handleClear() {
   // Clear the grid by setting all cells to dead (0)
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
-      grid[y][x] = 0;
+      // Check if grid[y] exists before accessing
+      if (grid[y]) {
+          grid[y][x] = 0;
+      }
     }
   }
   // Re-render the grid to reflect the change (pass grid as prevGrid to avoid highlight)
@@ -208,9 +420,9 @@ function countNeighbors(x, y) {
       const ny = (y + dy + gridHeight) % gridHeight;
 
       // Add neighbor's state to the count (live = 1, dead = 0)
-      // Ensure grid[ny] and grid[ny][nx] exist (should always be true with wrapping)
-      if (grid[ny] && grid[ny][nx] !== undefined) {
-        count += grid[ny][nx];
+      // Ensure grid[ny] and grid[ny][nx] exist (should always be true with wrapping, but safe check)
+      if (grid[ny]?.[nx] === 1) { // Use optional chaining and check for 1
+        count++;
       }
     }
   }
@@ -227,9 +439,10 @@ function computeNextGeneration() {
     nextGrid[y] = [];
     for (let x = 0; x < gridWidth; x++) {
       const neighbors = countNeighbors(x, y);
-      const currentState = grid[y][x];
+      const currentState = grid[y]?.[x]; // Use optional chaining
       let nextState = currentState; // Assume state stays the same initially
 
+      // Handle potential undefined currentState
       if (currentState === 1) {
         // Cell is alive
         if (neighbors < 2 || neighbors > 3) {
@@ -237,11 +450,12 @@ function computeNextGeneration() {
         }
         // else stays alive (neighbors === 2 || neighbors === 3)
       } else {
-        // Cell is dead
+        // Cell is dead (or undefined, treat as dead)
         if (neighbors === 3) {
           nextState = 1; // Becomes alive (reproduction)
+        } else {
+          nextState = 0; // Stays dead
         }
-        // else stays dead
       }
       nextGrid[y][x] = nextState;
     }
@@ -270,10 +484,12 @@ function updateGridState(nextGrid) {
  * 3. Renders the new grid, highlighting newly alive cells.
  */
 function runStep() {
-  const prevGrid = grid; // Store the current grid state
+  // Create a deep copy of the current grid state for prevGrid comparison
+  // This is important because updateGridState modifies the global 'grid'
+  const prevGrid = grid.map(row => [...row]);
   const nextGrid = computeNextGeneration();
   updateGridState(nextGrid); // Updates global 'grid' to nextGrid
-  // Pass both the new grid (which is now the global 'grid') and the previous grid
+  // Pass the deep copied previous grid for correct highlighting
   renderGrid(prevGrid);
 }
 
@@ -307,10 +523,14 @@ function pauseGame() {
 /**
  * Handles changes to the grid size input.
  * Handles changes to the grid width or height inputs.
- * Pauses simulation, validates inputs, creates a new grid, and renders it.
+ * Validates inputs, resizes the grid preserving state, and renders it.
+ * If the simulation is running, it pauses temporarily during the resize and resumes afterwards.
  */
 function handleSizeChange() {
-  pauseGame(); // Pause simulation during resize
+  const wasRunning = isRunning; // Store the current running state
+  if (wasRunning) {
+    pauseGame(); // Pause simulation temporarily if it was running
+  }
 
   let newWidth = parseInt(gridWidthInput.value, 10);
   let newHeight = parseInt(gridHeightInput.value, 10);
@@ -337,11 +557,26 @@ function handleSizeChange() {
     return; // Stop processing if height is invalid
   }
 
-  console.log(`Handling size change to ${newWidth}x${newHeight}`);
-  // Create new grid state and update global width/height
-  createGrid(newWidth, newHeight);
-  // Render the new grid (pass grid as prevGrid to avoid initial highlight)
-  renderGrid(grid);
+  // Only resize if the dimensions actually changed
+  if (newWidth !== gridWidth || newHeight !== gridHeight) {
+      console.log(`Handling size change to ${newWidth}x${newHeight}`);
+      // Resize grid state preserving content and update global width/height
+      resizeGrid(newWidth, newHeight);
+      // Render the new grid (pass grid as prevGrid to avoid initial highlight)
+      renderGrid(grid); // Render the newly resized grid, which now calls updateGridAppearance
+      // Explicitly call updateGridAppearance again in case renderGrid didn't run due to no dimension change,
+      // or just to be sure the latest container size is considered.
+      updateGridAppearance();
+  } else {
+      console.log("Size change detected, but dimensions are the same. No resize needed.");
+      // Still might need to update appearance if window resized without grid dimension change
+      updateGridAppearance();
+  }
+
+  // Resume simulation if it was running before the resize
+  if (wasRunning) {
+    startGame();
+  }
 }
 
 /**
@@ -385,32 +620,137 @@ function handleReset() {
 }
 
 /**
- * Handles clicks on individual cells within the grid container.
- * Toggles the state of the clicked cell (live/dead) if the simulation is paused.
- * @param {Event} event - The click event object.
+ * Gets the cell coordinates (x, y) under a PointerEvent or TouchEvent relative to the grid container.
+ * @param {MouseEvent|TouchEvent} event - The pointer or touch event.
+ * @returns {{x: number, y: number}|null} The cell coordinates {x, y} or null if outside the grid.
  */
-function handleCellClick(event) {
-  // Only allow clicks if simulation is paused and the click is on a cell
-  if (isRunning || !event.target.classList.contains("cell")) {
+function getCellCoordsFromEvent(event) {
+  const rect = gridContainer.getBoundingClientRect();
+  let clientX, clientY;
+
+  if (event.touches && event.touches.length > 0) {
+    // Use the first touch point
+    clientX = event.touches[0].clientX;
+    clientY = event.touches[0].clientY;
+  } else if (event.clientX !== undefined && event.clientY !== undefined) {
+    // Use mouse coordinates
+    clientX = event.clientX;
+    clientY = event.clientY;
+  } else {
+    return null; // Not a valid event type
+  }
+
+  const xPos = clientX - rect.left;
+  const yPos = clientY - rect.top;
+
+  // Calculate cell size (assuming square cells, get from computed style)
+  // This assumes the grid has rendered and has computed styles.
+  const gridStyle = window.getComputedStyle(gridContainer);
+  // grid-template-columns might be like "repeat(42, 15px)" or "15px 15px ..."
+  const columnStyle = gridStyle.gridTemplateColumns;
+  const firstColumnSize = columnStyle.split(' ')[0];
+  const cellSize = parseFloat(firstColumnSize); // Assumes square cells and first column size is representative
+
+  if (isNaN(cellSize) || cellSize <= 0) {
+      console.error("Could not determine cell size for painting.");
+      return null; // Cannot calculate without cell size
+  }
+
+  const x = Math.floor(xPos / cellSize);
+  const y = Math.floor(yPos / cellSize);
+
+  // Check if the calculated coordinates are within the grid bounds
+  if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
+    return { x, y };
+  } else {
+    return null; // Click was outside the grid cells (e.g., on border/padding)
+  }
+}
+
+
+/**
+ * Handles the start of a painting action (mousedown or touchstart).
+ * Toggles the initial cell and sets the painting state.
+ * @param {MouseEvent|TouchEvent} event - The mousedown or touchstart event.
+ */
+function handlePointerDown(event) {
+  // Removed isRunning check to allow painting while running
+
+  // Prevent default scrolling/selection behavior, especially for touch
+  if (event.type === 'touchstart') {
+    event.preventDefault();
+  }
+
+  const coords = getCellCoordsFromEvent(event);
+  if (!coords) return; // Click was not on a valid cell
+
+  const { x, y } = coords;
+
+  // Ensure coordinates are valid and grid cell exists (redundant check, but safe)
+  if (!grid[y] || grid[y][x] === undefined) {
+    console.error("Invalid cell coordinates on pointer down:", x, y);
     return;
   }
 
-  const cellElement = event.target;
-  const x = parseInt(cellElement.dataset.x, 10);
-  const y = parseInt(cellElement.dataset.y, 10);
-
-  // Ensure coordinates are valid
-  if (isNaN(x) || isNaN(y) || !grid[y] || grid[y][x] === undefined) {
-    console.error("Invalid cell coordinates clicked:", x, y);
-    return;
-  }
-
-  // Toggle the state in the grid array
+  // Toggle the state of the clicked cell
   grid[y][x] = grid[y][x] === 1 ? 0 : 1;
-  console.log(`Toggled cell (${x}, ${y}) to state ${grid[y][x]}`);
+  console.log(`Pointer Down: Toggled cell (${x}, ${y}) to state ${grid[y][x]}`);
 
-  // Re-render the grid to reflect the change (pass grid as prevGrid to avoid highlight)
+  // Start painting
+  isPainting = true;
+  paintingState = grid[y][x]; // Set painting state to the *new* state of the clicked cell
+
+  // Re-render the grid immediately to show the toggle
   renderGrid(grid);
+}
+
+/**
+ * Handles the continuation of a painting action (mousemove or touchmove).
+ * Sets the state of cells under the pointer to the current painting state.
+ * @param {MouseEvent|TouchEvent} event - The mousemove or touchmove event.
+ */
+function handlePointerMove(event) {
+  if (!isPainting) return; // Only paint if actively painting (removed isRunning check)
+
+  // Prevent default scrolling/selection behavior
+   if (event.type === 'touchmove') {
+    event.preventDefault();
+  }
+
+  const coords = getCellCoordsFromEvent(event);
+   if (!coords) return; // Pointer is outside the grid
+
+  const { x, y } = coords;
+
+  // Ensure coordinates are valid and grid cell exists
+  if (!grid[y] || grid[y][x] === undefined) {
+    // This can happen if moving quickly outside grid bounds
+    return;
+  }
+
+  // Check if the cell's current state is different from the painting state
+  if (grid[y][x] !== paintingState) {
+    grid[y][x] = paintingState; // Set the cell to the painting state
+    console.log(`Pointer Move: Set cell (${x}, ${y}) to state ${paintingState}`);
+
+    // Re-render the grid to show the change
+    // Optimization: Could potentially debounce or throttle rendering here for performance
+    // on very large grids or fast movements, but for now, direct render is simpler.
+    renderGrid(grid);
+  }
+}
+
+/**
+ * Handles the end of a painting action (mouseup or touchend).
+ * Stops the painting state.
+ * @param {MouseEvent|TouchEvent} event - The mouseup or touchend event.
+ */
+function handlePointerUp(event) {
+  if (isPainting) {
+    console.log("Pointer Up: Painting stopped.");
+    isPainting = false;
+    // No re-render needed here, as the last move event would have triggered it.
+  }
 }
 
 // --- TRON Background Animation ---

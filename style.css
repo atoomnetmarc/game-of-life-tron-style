@@ -106,9 +106,9 @@ h1 {
 
 /* Individual Cell Styling */
 .cell {
-  /* Dimensions will be set by JS or kept small */
-  width: 15px; /* Example size, might be adjusted */
-  height: 15px; /* Example size, might be adjusted */
+  /* Dimensions are now set dynamically by JavaScript */
+  /* width: 15px; */ /* Removed fixed width */
+  /* height: 15px; */ /* Removed fixed height */
   border: 1px solid rgba(0, 255, 255, 0.1); /* Faint grid lines */
   transition: background-color 0.3s ease; /* Smooth transition for state change */
 }
