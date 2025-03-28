@@ -164,9 +164,9 @@ function createGrid(width, height) {
   for (let y = 0; y < height; y++) {
     grid[y] = [];
     for (let x = 0; x < width; x++) {
-      // Initialize with state object
-      const isAlive = Math.random() > 0.7; // Approx 30% live cells
-      grid[y][x] = { isAlive: isAlive, newlyAlive: false };
+      // Initialize with state object using only age
+      const isAliveRandom = Math.random() > 0.7; // Approx 30% live cells
+      grid[y][x] = { age: isAliveRandom ? 1 : 0 }; // Age 1 if alive, 0 if dead
     }
   }
   gridWidth = width; // Update global gridWidth state
@@ -191,8 +191,8 @@ function resizeGrid(newWidth, newHeight) {
   // Create the new grid, initialized with dead cells (0)
   const newGrid = [];
   for (let y = 0; y < newHeight; y++) {
-    // Initialize with dead state object
-    newGrid[y] = Array(newWidth).fill({ isAlive: false, newlyAlive: false });
+    // Initialize with dead state object using only age
+    newGrid[y] = Array(newWidth).fill({ age: 0 });
   }
 
   // Calculate offsets to center the old grid within the new grid
@@ -279,15 +279,15 @@ function renderGrid() {
           console.warn(`Undefined cell state at (${x}, ${y})`);
           cell.classList.add("dead"); // Default to dead
       } else {
-          // Add 'live' or 'dead' class based on isAlive
-          if (currentCellState.isAlive) {
+          // Add 'live' or 'dead' class based on age
+          if (currentCellState.age > 0) {
               cell.classList.add("live");
           } else {
               cell.classList.add("dead");
           }
 
-          // Add 'newly-alive' class based on newlyAlive property
-          if (currentCellState.newlyAlive) {
+          // Add 'newly-alive' class if age is 1
+          if (currentCellState.age === 1) {
               cell.classList.add("newly-alive");
           }
       }
@@ -304,8 +304,8 @@ function renderGrid() {
   let aliveCount = 0;
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
-      // Check if the cell is alive using the isAlive property
-      if (grid[y]?.[x]?.isAlive === true) { // Use optional chaining and check isAlive
+      // Check if the cell is alive using the age property
+      if (grid[y]?.[x]?.age > 0) { // Use optional chaining and check age
         aliveCount++;
       }
     }
@@ -398,8 +398,8 @@ function handleClear() {
     for (let x = 0; x < gridWidth; x++) {
       // Check if grid[y] exists before accessing
       if (grid[y]) {
-          // Set to dead state object
-          grid[y][x] = { isAlive: false, newlyAlive: false };
+          // Set to dead state object using only age
+          grid[y][x] = { age: 0 };
       }
     }
   }
@@ -427,9 +427,9 @@ function countNeighbors(x, y) {
       const nx = (x + dx + gridWidth) % gridWidth;
       const ny = (y + dy + gridHeight) % gridHeight;
 
-      // Add neighbor's state to the count if it's alive
+      // Add neighbor's state to the count if it's alive (age > 0)
       // Ensure grid[ny] and grid[ny][nx] exist (should always be true with wrapping, but safe check)
-      if (grid[ny]?.[nx]?.isAlive === true) { // Check the isAlive property
+      if (grid[ny]?.[nx]?.age > 0) { // Check the age property
         count++;
       }
     }
@@ -447,10 +447,12 @@ function computeNextGeneration() {
     nextGrid[y] = [];
     for (let x = 0; x < gridWidth; x++) {
       const neighbors = countNeighbors(x, y);
-      const currentCellState = grid[y]?.[x]; // Get the state object {isAlive, newlyAlive}
-      const currentIsAlive = currentCellState?.isAlive === true; // Check isAlive property
+      const currentCellState = grid[y]?.[x]; // Get the state object { age }
+      const currentAge = currentCellState?.age || 0; // Get current age, default to 0
+      const currentIsAlive = currentAge > 0; // Determine alive status from age
 
       let nextIsAlive = currentIsAlive; // Assume state stays the same initially
+      let nextAge = currentAge; // Assume age stays the same initially
 
       // Apply Game of Life rules based on currentIsAlive
       if (currentIsAlive) {
@@ -470,8 +472,23 @@ function computeNextGeneration() {
       // Determine if the cell is newly alive in the next generation
       const nextNewlyAlive = nextIsAlive && !currentIsAlive;
 
-      // Store the new state object in the next grid
-      nextGrid[y][x] = { isAlive: nextIsAlive, newlyAlive: nextNewlyAlive };
+      // Calculate the next age
+      if (nextIsAlive) {
+        // If the cell is alive in the next step
+        if (currentIsAlive) {
+          // If it was already alive, increment age
+          nextAge = currentAge + 1;
+        } else {
+          // If it just became alive, set age to 1
+          nextAge = 1;
+        }
+      } else {
+        // If the cell is dead in the next step, reset age
+        nextAge = 0;
+      }
+
+      // Store the new state object in the next grid (using only age)
+      nextGrid[y][x] = { age: nextAge };
     }
   }
   return nextGrid;
@@ -705,17 +722,21 @@ function handlePointerDown(event) {
     return;
   }
 
-  // Determine the new alive state (toggle the current isAlive)
-  const currentIsAlive = grid[y][x]?.isAlive === true;
-  const newIsAlive = !currentIsAlive;
+  // Determine the current alive state based on age
+  const currentAge = grid[y][x]?.age || 0;
+  const currentIsAlive = currentAge > 0;
 
-  // Update the cell state with the new object, ensuring newlyAlive is false
-  grid[y][x] = { isAlive: newIsAlive, newlyAlive: false };
-  console.log(`Pointer Down: Toggled cell (${x}, ${y}) to isAlive: ${newIsAlive}`);
+  // Determine the new age (toggle: 1 if dead, 0 if alive)
+  const newAge = currentIsAlive ? 0 : 1;
+  const newIsAliveState = newAge > 0; // The boolean state corresponding to the new age
+
+  // Update the cell state with the new object (using only age)
+  grid[y][x] = { age: newAge };
+  console.log(`Pointer Down: Toggled cell (${x}, ${y}) to age: ${newAge}`);
 
   // Start painting
   isPainting = true;
-  paintingState = newIsAlive; // Set painting state (boolean) to the *new* alive state
+  paintingState = newIsAliveState; // Set painting state (boolean) based on the new alive status
 
   // Re-render the grid immediately to show the toggle
   // Pass the current grid state (no prevGrid needed for rendering logic anymore)
@@ -746,12 +767,15 @@ function handlePointerMove(event) {
     return;
   }
 
-  // Check if the cell's current alive state is different from the painting state (boolean)
-  const currentIsAlive = grid[y][x]?.isAlive === true;
+  // Check if the cell's current alive state (based on age) is different from the painting state (boolean)
+  const currentAge = grid[y][x]?.age || 0;
+  const currentIsAlive = currentAge > 0;
+
   if (currentIsAlive !== paintingState) {
-    // Set the cell state object, ensuring newlyAlive is false
-    grid[y][x] = { isAlive: paintingState, newlyAlive: false };
-    console.log(`Pointer Move: Set cell (${x}, ${y}) to isAlive: ${paintingState}`);
+    // Set the cell state object using only age
+    const newAge = paintingState ? 1 : 0; // Age is 1 if painting alive, 0 if painting dead
+    grid[y][x] = { age: newAge };
+    console.log(`Pointer Move: Set cell (${x}, ${y}) to age: ${newAge}`);
 
     // Re-render the grid to show the change
     // Optimization: Could potentially debounce or throttle rendering here for performance
