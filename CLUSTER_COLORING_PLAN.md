@@ -28,8 +28,8 @@ When two or more clusters from the previous generation merge into a single clust
 
 ## Data Structures
 
-*   `grid`: The existing 2D array (`0`=dead, `1`=live).
-*   `clusterMap`: A 2D array (same dimensions as `grid`). Stores a `clusterId` (number) for each live cell in the *current* generation, or `null` for dead cells.
+*   `grid`: The existing 2D array, now storing cell state objects: `{ isAlive: boolean, newlyAlive: boolean }`.
+*   `clusterMap`: A 2D array (same dimensions as `grid`). Stores a `clusterId` (number) for each live cell (`isAlive: true`) in the *current* generation, or `null` for dead cells.
 *   `clusterData`: An object/map storing info about each cluster in the *current* generation. Keyed by `clusterId`. Stores `{ id: number, cells: Set<string>, color: string | null }`. `cells` uses coordinate strings like `"y,x"`.
 *   `previousClusterData`: Stores the `clusterData` from the *previous* generation, used for tracking. Initialized as `{}`.
 *   `colorPalette`: An array of the 5 predefined color strings.
@@ -46,7 +46,7 @@ graph TD
     subgraph C [Identify Clusters & Assign Colors]
         direction TB
         C1[Initialize `clusterMap`, `clusterData`, `visited` array] --> C2{Scan `nextGrid`};
-        C2 -- Found Live, Unvisited Cell --> C3[Perform BFS/DFS (8-way)];
+        C2 -- Found Live, Unvisited Cell --> C3[Perform BFS/DFS 8-way];
         C3 --> C4[Assign New Cluster ID];
         C4 --> C5[Store Cluster Cells in `clusterData`];
         C5 --> C6[Mark Cells as Visited & Update `clusterMap`];
@@ -56,7 +56,7 @@ graph TD
         subgraph C8 [Assign Colors Logic]
             direction LR
             C8a[For each Current Cluster] --> C8b{Find Overlapping Previous Clusters & Counts};
-            C8b --> C8c{Determine Best Previous Match (Max Overlap)};
+            C8b --> C8c{Determine Best Previous Match Max Overlap};
             C8c -- Significant Overlap & Valid Prev Color? --> C8d[Assign Previous Color];
             C8c -- No Significant Overlap / New Cluster --> C8e[Assign New Color from Palette];
             C8d --> C8f[Update `clusterData` with Color];
@@ -68,7 +68,7 @@ graph TD
     D --> E{Render Grid};
     subgraph E [Render Grid `renderGrid`]
         direction LR
-        E1[For each Cell `(y, x)`] --> E2{Is Cell Live?};
+        E1[For each Cell `y, x`] --> E2{Is Cell Live?};
         E2 -- Yes --> E3[Get Cluster ID from `clusterMap`];
         E3 --> E4[Get Color from `clusterData` using ID];
         E4 --> E5[Apply Color via CSS Class `cluster-color-N`];
@@ -90,16 +90,16 @@ graph TD
     *   Define `colorPalette` globally with the 5 specified colors.
 
 2.  **Modify `runStep`:**
-    *   Keep the calculation of `prevGrid` and `nextGrid`.
+    *   Calculate the next grid state: `const nextGrid = computeNextGeneration();` (This now returns objects `{isAlive, newlyAlive}`).
     *   **New Step:** Call `clusterInfo = identifyAndColorClusters(nextGrid, previousClusterData, colorPalette, nextColorIndex)`.
     *   This function returns `{ clusterMap, clusterData, nextColorIndex }`.
     *   Update global state: `grid = nextGrid`, `previousClusterData = clusterInfo.clusterData`, `nextColorIndex = clusterInfo.nextColorIndex`.
-    *   Modify the `renderGrid` call: `renderGrid(prevGrid, clusterInfo.clusterMap, clusterInfo.clusterData)`.
+    *   Modify the `renderGrid` call: `renderGrid(clusterInfo.clusterMap, clusterInfo.clusterData)`. *(Note: `renderGrid` itself now reads the global `grid`)*.
 
 3.  **Implement `identifyAndColorClusters(currentGrid, prevData, palette, initialColorIndex)`:**
     *   Initialize `clusterMap` (filled with `null`), `currentClusterData = {}`, `visited` array (filled with `false`), `nextClusterId = 1`.
     *   **Cluster Identification (BFS/DFS):**
-        *   Iterate through `currentGrid`. If `currentGrid[y][x] === 1` and `!visited[y][x]`:
+        *   Iterate through `currentGrid`. If `currentGrid[y][x]?.isAlive === true` and `!visited[y][x]`:
             *   Perform BFS or DFS (8-way connectivity) starting from `(y, x)`.
             *   Collect all connected live cell coordinates in a `Set<string>` (`cellSet`).
             *   Mark these cells as `visited[ny][nx] = true`.
@@ -120,21 +120,22 @@ graph TD
                 *   Increment `currentColorIndex`.
     *   Return `{ clusterMap, clusterData: currentClusterData, nextColorIndex: currentColorIndex }`.
 
-4.  **Modify `renderGrid(prevGrid, clusterMap, currentClusterData)`:**
-    *   Accept `clusterMap` and `currentClusterData` as parameters.
+
+4.  **Modify `renderGrid(clusterMap, currentClusterData)`:** *(Note: Accessing global `grid`)*
+    *   Accept `clusterMap` and `currentClusterData` as parameters (or access globally if preferred).
     *   Inside the cell rendering loop (`y`, `x`):
         *   Remove any existing `cluster-color-*` classes from the cell first.
-        *   If `grid[y][x] === 1`:
+        *   Get the current cell state: `const cellState = grid[y]?.[x];`
+        *   If `cellState?.isAlive === true`:
             *   Get `clusterId = clusterMap[y][x]`.
             *   If `clusterId` and `currentClusterData[clusterId]` exist:
                 *   Get `color = currentClusterData[clusterId].color`.
                 *   Find `colorIndex = colorPalette.indexOf(color)`.
                 *   If `colorIndex !== -1`, add class `cluster-color-${colorIndex}`.
             *   Add `live` class.
-            *   Handle `newly-alive` class based on `prevGrid`.
-        *   Else (`grid[y][x] === 0`):
+            *   *(The `newly-alive` class is handled automatically by the refactored `renderGrid` based on `cellState.newlyAlive`)*
+        *   Else (`cellState?.isAlive === false` or `cellState` is null/undefined):
             *   Add `dead` class.
-
 5.  **Add CSS (`style.css`):**
     *   Define rules for `.cell.live.cluster-color-0`, `.cell.live.cluster-color-1`, ..., `.cell.live.cluster-color-4` using the specified palette colors for `background-color`.
     *   Ensure the `.cell.newly-alive` style provides sufficient contrast (e.g., using `border` or `box-shadow` as the background will be overridden by the cluster color). Example:

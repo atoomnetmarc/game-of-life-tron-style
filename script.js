@@ -26,7 +26,7 @@ const bodyElement = document.body; // Get body element
 // State Variables
 let gridWidth = DEFAULT_WIDTH;
 let gridHeight = DEFAULT_HEIGHT;
-let grid = []; // 2D array representing the cell states (0 = dead, 1 = live)
+let grid = []; // 2D array representing cell states as objects: { isAlive: boolean, newlyAlive: boolean }
 let isRunning = false;
 let simulationSpeed = DEFAULT_SPEED;
 let intervalId = null; // To store the ID from setInterval
@@ -164,8 +164,9 @@ function createGrid(width, height) {
   for (let y = 0; y < height; y++) {
     grid[y] = [];
     for (let x = 0; x < width; x++) {
-      // Randomly assign live (1) or dead (0) state
-      grid[y][x] = Math.random() > 0.7 ? 1 : 0; // Approx 30% live cells
+      // Initialize with state object
+      const isAlive = Math.random() > 0.7; // Approx 30% live cells
+      grid[y][x] = { isAlive: isAlive, newlyAlive: false };
     }
   }
   gridWidth = width; // Update global gridWidth state
@@ -190,7 +191,8 @@ function resizeGrid(newWidth, newHeight) {
   // Create the new grid, initialized with dead cells (0)
   const newGrid = [];
   for (let y = 0; y < newHeight; y++) {
-    newGrid[y] = Array(newWidth).fill(0);
+    // Initialize with dead state object
+    newGrid[y] = Array(newWidth).fill({ isAlive: false, newlyAlive: false });
   }
 
   // Calculate offsets to center the old grid within the new grid
@@ -251,10 +253,10 @@ function resizeGrid(newWidth, newHeight) {
  * Renders the current grid state to the DOM.
  * Clears the existing grid and creates new cell elements.
  * Sets CSS variables for grid dimensions.
- * @param {Array<Array<number>>} [prevGrid=null] - The grid state from the previous generation.
- *                                                 Used to highlight newly alive cells.
+ * Highlighting of newly alive cells is now based on the `newlyAlive` property
+ * within the current grid state object.
  */
-function renderGrid(prevGrid = null) {
+function renderGrid() {
   // Clear previous grid content
   gridContainer.innerHTML = "";
 
@@ -269,20 +271,25 @@ function renderGrid(prevGrid = null) {
       const cell = document.createElement("div");
       cell.classList.add("cell");
 
-      // Check if grid[y] and grid[y][x] exist before accessing
-      const currentState = grid[y]?.[x]; // Use optional chaining
-      const previousState = prevGrid?.[y]?.[x]; // Safely access previous state
+      // Get the current cell state object
+      const currentCellState = grid[y]?.[x]; // Use optional chaining
 
-      // Handle potential undefined currentState if grid structure is unexpected
-      if (currentState === 1) {
-        cell.classList.add("live");
-        // Check if it was dead in the previous step
-        if (prevGrid && previousState === 0) {
-          cell.classList.add("newly-alive");
-        }
+      // Handle potential undefined state (shouldn't happen with proper initialization)
+      if (!currentCellState) {
+          console.warn(`Undefined cell state at (${x}, ${y})`);
+          cell.classList.add("dead"); // Default to dead
       } else {
-        // Default to dead if currentState is 0 or undefined
-        cell.classList.add("dead");
+          // Add 'live' or 'dead' class based on isAlive
+          if (currentCellState.isAlive) {
+              cell.classList.add("live");
+          } else {
+              cell.classList.add("dead");
+          }
+
+          // Add 'newly-alive' class based on newlyAlive property
+          if (currentCellState.newlyAlive) {
+              cell.classList.add("newly-alive");
+          }
       }
 
       // Store coordinates for potential click events
@@ -297,8 +304,8 @@ function renderGrid(prevGrid = null) {
   let aliveCount = 0;
   for (let y = 0; y < gridHeight; y++) {
     for (let x = 0; x < gridWidth; x++) {
-      // Check if grid[y] and grid[y][x] exist before accessing
-      if (grid[y]?.[x] === 1) { // Use optional chaining
+      // Check if the cell is alive using the isAlive property
+      if (grid[y]?.[x]?.isAlive === true) { // Use optional chaining and check isAlive
         aliveCount++;
       }
     }
@@ -391,7 +398,8 @@ function handleClear() {
     for (let x = 0; x < gridWidth; x++) {
       // Check if grid[y] exists before accessing
       if (grid[y]) {
-          grid[y][x] = 0;
+          // Set to dead state object
+          grid[y][x] = { isAlive: false, newlyAlive: false };
       }
     }
   }
@@ -419,9 +427,9 @@ function countNeighbors(x, y) {
       const nx = (x + dx + gridWidth) % gridWidth;
       const ny = (y + dy + gridHeight) % gridHeight;
 
-      // Add neighbor's state to the count (live = 1, dead = 0)
+      // Add neighbor's state to the count if it's alive
       // Ensure grid[ny] and grid[ny][nx] exist (should always be true with wrapping, but safe check)
-      if (grid[ny]?.[nx] === 1) { // Use optional chaining and check for 1
+      if (grid[ny]?.[nx]?.isAlive === true) { // Check the isAlive property
         count++;
       }
     }
@@ -431,7 +439,7 @@ function countNeighbors(x, y) {
 
 /**
  * Computes the next state of the grid based on Conway's Game of Life rules.
- * @return {Array<Array<number>>} The grid representing the next generation.
+ * @return {Array<Array<{isAlive: boolean, newlyAlive: boolean}>>} The grid representing the next generation, with each cell as a state object.
  */
 function computeNextGeneration() {
   const nextGrid = [];
@@ -439,25 +447,31 @@ function computeNextGeneration() {
     nextGrid[y] = [];
     for (let x = 0; x < gridWidth; x++) {
       const neighbors = countNeighbors(x, y);
-      const currentState = grid[y]?.[x]; // Use optional chaining
-      let nextState = currentState; // Assume state stays the same initially
+      const currentCellState = grid[y]?.[x]; // Get the state object {isAlive, newlyAlive}
+      const currentIsAlive = currentCellState?.isAlive === true; // Check isAlive property
 
-      // Handle potential undefined currentState
-      if (currentState === 1) {
+      let nextIsAlive = currentIsAlive; // Assume state stays the same initially
+
+      // Apply Game of Life rules based on currentIsAlive
+      if (currentIsAlive) {
         // Cell is alive
         if (neighbors < 2 || neighbors > 3) {
-          nextState = 0; // Dies (underpopulation or overpopulation)
+          nextIsAlive = false; // Dies (underpopulation or overpopulation)
         }
         // else stays alive (neighbors === 2 || neighbors === 3)
       } else {
-        // Cell is dead (or undefined, treat as dead)
+        // Cell is dead
         if (neighbors === 3) {
-          nextState = 1; // Becomes alive (reproduction)
-        } else {
-          nextState = 0; // Stays dead
+          nextIsAlive = true; // Becomes alive (reproduction)
         }
+        // else stays dead
       }
-      nextGrid[y][x] = nextState;
+
+      // Determine if the cell is newly alive in the next generation
+      const nextNewlyAlive = nextIsAlive && !currentIsAlive;
+
+      // Store the new state object in the next grid
+      nextGrid[y][x] = { isAlive: nextIsAlive, newlyAlive: nextNewlyAlive };
     }
   }
   return nextGrid;
@@ -466,7 +480,7 @@ function computeNextGeneration() {
 /**
  * Updates the global grid state with the next generation's grid.
  * Increments the generation counter.
- * @param {Array<Array<number>>} nextGrid - The computed next grid state.
+ * @param {Array<Array<{isAlive: boolean, newlyAlive: boolean}>>} nextGrid - The computed next grid state, with each cell as a state object.
  */
 function updateGridState(nextGrid) {
   grid = nextGrid;
@@ -481,16 +495,15 @@ function updateGridState(nextGrid) {
  * Executes a single step of the simulation:
  * 1. Computes the next generation.
  * 2. Updates the grid state.
- * 3. Renders the new grid, highlighting newly alive cells.
+ * 3. Renders the new grid (highlighting is now based on 'newlyAlive' property).
  */
 function runStep() {
-  // Create a deep copy of the current grid state for prevGrid comparison
-  // This is important because updateGridState modifies the global 'grid'
-  const prevGrid = grid.map(row => [...row]);
+  // No need for prevGrid deep copy anymore
   const nextGrid = computeNextGeneration();
   updateGridState(nextGrid); // Updates global 'grid' to nextGrid
-  // Pass the deep copied previous grid for correct highlighting
-  renderGrid(prevGrid);
+  // Render the updated grid. The 'newly-alive' class is handled based on
+  // the 'newlyAlive' property set during computeNextGeneration.
+  renderGrid();
 }
 
 /**
@@ -692,16 +705,21 @@ function handlePointerDown(event) {
     return;
   }
 
-  // Toggle the state of the clicked cell
-  grid[y][x] = grid[y][x] === 1 ? 0 : 1;
-  console.log(`Pointer Down: Toggled cell (${x}, ${y}) to state ${grid[y][x]}`);
+  // Determine the new alive state (toggle the current isAlive)
+  const currentIsAlive = grid[y][x]?.isAlive === true;
+  const newIsAlive = !currentIsAlive;
+
+  // Update the cell state with the new object, ensuring newlyAlive is false
+  grid[y][x] = { isAlive: newIsAlive, newlyAlive: false };
+  console.log(`Pointer Down: Toggled cell (${x}, ${y}) to isAlive: ${newIsAlive}`);
 
   // Start painting
   isPainting = true;
-  paintingState = grid[y][x]; // Set painting state to the *new* state of the clicked cell
+  paintingState = newIsAlive; // Set painting state (boolean) to the *new* alive state
 
   // Re-render the grid immediately to show the toggle
-  renderGrid(grid);
+  // Pass the current grid state (no prevGrid needed for rendering logic anymore)
+  renderGrid();
 }
 
 /**
@@ -728,15 +746,18 @@ function handlePointerMove(event) {
     return;
   }
 
-  // Check if the cell's current state is different from the painting state
-  if (grid[y][x] !== paintingState) {
-    grid[y][x] = paintingState; // Set the cell to the painting state
-    console.log(`Pointer Move: Set cell (${x}, ${y}) to state ${paintingState}`);
+  // Check if the cell's current alive state is different from the painting state (boolean)
+  const currentIsAlive = grid[y][x]?.isAlive === true;
+  if (currentIsAlive !== paintingState) {
+    // Set the cell state object, ensuring newlyAlive is false
+    grid[y][x] = { isAlive: paintingState, newlyAlive: false };
+    console.log(`Pointer Move: Set cell (${x}, ${y}) to isAlive: ${paintingState}`);
 
     // Re-render the grid to show the change
     // Optimization: Could potentially debounce or throttle rendering here for performance
     // on very large grids or fast movements, but for now, direct render is simpler.
-    renderGrid(grid);
+    // Pass the current grid state (no prevGrid needed for rendering logic anymore)
+    renderGrid();
   }
 }
 
