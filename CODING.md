@@ -6,7 +6,7 @@ This document outlines the coding standards and guidelines to be followed for th
 
 *   **HTML:** HTML5
 *   **CSS:** CSS3
-*   **JavaScript:** Vanilla JavaScript (ES6+ syntax preferred). Avoid external libraries or frameworks unless explicitly agreed upon.
+*   **JavaScript:** Vanilla JavaScript (ES6+ syntax preferred) using ES Modules (`import`/`export`). Avoid external libraries or frameworks unless explicitly agreed upon.
 
 ## Code Style
 
@@ -15,8 +15,9 @@ This document outlines the coding standards and guidelines to be followed for th
 *   **Character Encoding:** Use UTF-8 for all files.
 *   **Line Endings:** Use Unix-style line endings (LF).
 
-### JavaScript (script.js)
-*   **Strict Mode:** Enable strict mode at the beginning of the script: `'use strict';`
+### JavaScript (Modules in `src/`)
+*   **Modules:** Use ES6 `import` and `export` statements to manage dependencies between files in the `src/` directory.
+*   **Strict Mode:** Enable strict mode at the beginning of each module file: `"use strict";`
 *   **Indentation:** Use 2 spaces for indentation, not tabs.
 *   **Semicolons:** Always use semicolons at the end of statements.
 *   **Variable Declarations:** Use `const` for variables that won't be reassigned and `let` for variables that will. Avoid using `var`.
@@ -45,16 +46,18 @@ This document outlines the coding standards and guidelines to be followed for th
 
 *   **JSDoc:** All JavaScript functions must include JSDoc comments. Describe the function's purpose, parameters (`@param {type} name - description`), and return value (`@return {type} - description`) if applicable.
     ```javascript
+    // Example assumes access to grid state (e.g., via an imported module)
     /**
-     * Counts the number of live neighbors for a given cell.
+     * Counts the number of live neighbors for a given cell using the current grid state.
      * Handles toroidal wrapping around the grid edges.
      * @param {number} x - The x-coordinate of the cell.
      * @param {number} y - The y-coordinate of the cell.
-     * @param {Array<Array<number>>} currentGrid - The current state of the grid.
-     * @param {number} size - The width/height of the grid.
-     * @return {number} The count of live neighbors.
+     * @param {number} width - The current grid width (e.g., from gridState.getWidth()).
+     * @param {number} height - The current grid height (e.g., from gridState.getHeight()).
+     * @returns {number} The count of live neighbors.
      */
-    function countNeighbors(x, y, currentGrid, size) {
+    function countNeighbors(x, y, width, height) {
+      // Implementation would likely use gridState.getCellState(nx, ny) internally
       // ... implementation ...
     }
     ```
@@ -62,12 +65,23 @@ This document outlines the coding standards and guidelines to be followed for th
 
 ## File Structure
 
-Adhere to the agreed-upon project structure:
+The project uses the following structure:
 ```
-/game-of-life/
-├── index.html
-├── style.css
-├── script.js
-├── README.md
-├── TODO.md
-└── CODING.md
+/game-of-life-tron-style/
+├── src/                     # Contains all JavaScript modules and related assets
+│   ├── backgroundAnimation.css # Styles for the background effect
+│   ├── backgroundAnimation.js
+│   ├── config.js
+│   ├── gameLogic.js
+│   ├── gridState.js
+│   ├── main.js              # Main entry point, loaded by index.html
+│   ├── painter.js
+│   ├── renderer.js
+│   ├── simulationController.js
+│   └── uiController.js
+├── index.html             # Main HTML file
+├── style.css              # Main CSS file (UI, grid, etc.)
+├── README.md              # Project overview and setup instructions
+├── TODO.md                # Future tasks/ideas
+└── CODING.md              # This file
+```

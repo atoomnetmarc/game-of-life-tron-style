@@ -32,8 +32,11 @@ The "game" is a zero-player game, meaning its evolution is determined by its ini
 ## How to Run
 
 1.  Clone or download this repository.
-2.  Navigate to the project directory.
-3.  Open the `index.html` file in a modern web browser (like Chrome, Firefox, Edge, or Safari).
+2.  Navigate to the project directory in your terminal.
+3.  **Start a local web server.** This project uses JavaScript Modules (`type="module"`), which require the files to be served over HTTP(S) due to browser security policies (CORS). Opening `index.html` directly from the file system (`file://`) will not work.
+    *   A simple way is to use Node.js/npm: Run `npx serve .` in the project directory.
+    *   Alternatively, if you have Python 3: Run `python3 -m http.server`.
+4.  Open your web browser and navigate to the local address provided by the server (e.g., `http://localhost:3000` or `http://localhost:8000`).
 
 ## Controls
 
@@ -49,4 +52,5 @@ The "game" is a zero-player game, meaning its evolution is determined by its ini
 
 - HTML5
 - CSS3
-- Vanilla JavaScript (ES6+)
+- Vanilla JavaScript (ES6+) using ES Modules
+  - Code organized into modules within the `src/` directory for better structure and maintainability.
