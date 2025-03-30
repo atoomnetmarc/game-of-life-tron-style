@@ -1,4 +1,4 @@
-"use strict";
+c"use strict";
 
 import * as gridState from './gridState.js';
 import * as renderer from './renderer.js';
@@ -15,17 +15,51 @@ const resetButton = document.getElementById("resetButton");
 const clearButton = document.getElementById("clearButton");
 const generationCountDisplay = document.getElementById("generationCount");
 const alivePercentageDisplay = document.getElementById("alivePercentage");
+const bornDisplay = document.getElementById("stats-born");
+const diedDisplay = document.getElementById("stats-died");
+const oldestCurrentDisplay = document.getElementById("stats-oldest-current");
+const oldestHistoricDisplay = document.getElementById("stats-oldest-historic");
 
 /**
- * Updates the UI elements that display information (generation count, alive percentage).
+ * Updates the UI elements that display information based on the provided stats object.
+ * @param {{born: number, died: number, totalBorn: number, totalDied: number, oldestCurrent: number, oldestHistoric: number, generation: number, alivePercent: string}} stats - The statistics object from the simulation controller.
  */
-function updateInfoDisplays() {
+function updateInfoDisplays(stats) {
+    if (!stats) {
+        console.warn("updateInfoDisplays called without stats object.");
+        // Attempt to fetch current basic stats as a fallback for initialization
+        stats = {
+            born: 0,
+            died: 0,
+            totalBorn: 0, // Assume 0 if no stats provided
+            totalDied: 0, // Assume 0 if no stats provided
+            oldestCurrent: 0,
+            oldestHistoric: 0, // Cannot get this without simulation controller state
+            generation: gridState.getGenerationCount(),
+            alivePercent: gridState.getAliveStats().percentage
+        };
+    }
+
     if (generationCountDisplay) {
-        generationCountDisplay.textContent = gridState.getGenerationCount();
+        generationCountDisplay.textContent = stats.generation ?? 'N/A';
     }
     if (alivePercentageDisplay) {
-        const stats = gridState.getAliveStats();
-        alivePercentageDisplay.textContent = stats.percentage;
+        alivePercentageDisplay.textContent = stats.alivePercent ?? 'N/A';
+    }
+    if (bornDisplay) {
+        // Display both last step and total
+        bornDisplay.textContent = `${stats.born ?? 'N/A'} (Total: ${stats.totalBorn ?? 'N/A'})`;
+    }
+    if (diedDisplay) {
+        // Display both last step and total
+        diedDisplay.textContent = `${stats.died ?? 'N/A'} (Total: ${stats.totalDied ?? 'N/A'})`;
+    }
+    if (oldestCurrentDisplay) {
+        oldestCurrentDisplay.textContent = stats.oldestCurrent ?? 'N/A';
+    }
+    if (oldestHistoricDisplay) {
+        // Note: Historic oldest is managed in simulationController, passed via stats
+        oldestHistoricDisplay.textContent = stats.oldestHistoric ?? 'N/A';
     }
 }
 
@@ -124,26 +158,22 @@ function handleStep() {
 
 /**
  * Handles the reset button click.
- * Pauses simulation, resets grid state, re-renders, and updates info.
+ * Uses the simulation controller's handler which manages state, rendering, and UI updates.
  */
 function handleReset() {
-    simulationController.pauseGame();
+    simulationController.handleResetGrid();
+    // Update button text immediately as simulation is paused by handleResetGrid
     startPauseButton.textContent = "Start";
-    gridState.resetGrid(); // Resets grid state and generation count
-    renderer.renderGrid();
-    updateInfoDisplays(); // Update displays after reset
 }
 
 /**
  * Handles the clear button click.
- * Pauses simulation, clears grid state, re-renders, and updates info.
+ * Uses the simulation controller's handler which manages state, rendering, and UI updates.
  */
 function handleClear() {
-    simulationController.pauseGame();
+    simulationController.handleClearGrid();
+    // Update button text immediately as simulation is paused by handleClearGrid
     startPauseButton.textContent = "Start";
-    gridState.clearGrid(); // Clears grid state only
-    renderer.renderGrid();
-    updateInfoDisplays(); // Update displays after clear
 }
 
 /**
@@ -219,6 +249,17 @@ export function initializeUI() {
     gridHeightInput.value = gridState.getHeight();
     speedInput.value = simulationController.getSimulationSpeed();
     startPauseButton.textContent = simulationController.getIsRunning() ? "Pause" : "Start";
-    updateInfoDisplays(); // Initial display update
+    // Initial display update with default stats
+    const initialStats = {
+        born: 0,
+        died: 0,
+        totalBorn: 0, // Initialize total born
+        totalDied: 0, // Initialize total died
+        oldestCurrent: 0,
+        oldestHistoric: 0, // Historic starts at 0
+        generation: gridState.getGenerationCount(),
+        alivePercent: gridState.getAliveStats().percentage
+    };
+    updateInfoDisplays(initialStats);
     console.log("UI state initialized.");
 }

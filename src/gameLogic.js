@@ -37,14 +37,19 @@ function countNeighbors(x, y, width, height) {
 }
 
 /**
- * Computes the next state of the grid based on Conway's Game of Life rules.
+ * Computes the next state of the grid based on Conway's Game of Life rules
+ * and calculates statistics about the transition (born, died, oldest cell).
  * Reads the current state from gridState.js.
- * @returns {Array<Array<{age: number}>>} The grid representing the next generation.
+ * @returns {{nextGrid: Array<Array<{age: number}>>, stats: {born: number, died: number, oldest: number}}}
+ *          An object containing the grid for the next generation and statistics.
  */
 export function computeNextGeneration() {
   const currentWidth = gridState.getWidth();
   const currentHeight = gridState.getHeight();
   const nextGrid = [];
+  let cellsBorn = 0;
+  let cellsDied = 0;
+  let currentOldestAge = 0;
 
   for (let y = 0; y < currentHeight; y++) {
     nextGrid[y] = [];
@@ -72,16 +77,35 @@ export function computeNextGeneration() {
         // else stays dead
       }
 
-      // Calculate the next age
+      // Calculate the next age and update stats
       if (nextIsAlive) {
-        nextAge = currentIsAlive ? currentAge + 1 : 1; // Increment existing age or set to 1 if newly alive
+        if (currentIsAlive) {
+          nextAge = currentAge + 1; // Survived: Increment age
+        } else {
+          nextAge = 1; // Born: Set age to 1
+          cellsBorn++;
+        }
+        // Update oldest age for this generation
+        if (nextAge > currentOldestAge) {
+          currentOldestAge = nextAge;
+        }
       } else {
-        nextAge = 0; // Reset age if dead
+        nextAge = 0; // Died or stayed dead: Reset age
+        if (currentIsAlive) {
+          cellsDied++; // Died
+        }
       }
 
       // Store the new state object in the next grid
       nextGrid[y][x] = { age: nextAge };
     }
   }
-  return nextGrid;
+
+  const stats = {
+    born: cellsBorn,
+    died: cellsDied,
+    oldest: currentOldestAge
+  };
+
+  return { nextGrid, stats };
 }
