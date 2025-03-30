@@ -1,4 +1,4 @@
-c"use strict";
+"use strict";
 
 import * as gridState from './gridState.js';
 import * as renderer from './renderer.js';

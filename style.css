@@ -134,3 +134,34 @@ h1 {
   margin-top: 20px;
   font-size: 0.9em;
 }
+
+/* Statistics Table Styling */
+.info table {
+  width: auto; /* Adjust table width to content */
+  margin: 10px auto; /* Center the table */
+  border-collapse: collapse; /* Remove space between borders */
+}
+
+.info td {
+  padding: 4px 8px; /* Add some padding to cells */
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+/* Style for the label column (first cell in each row) */
+.info tr td:first-child {
+  text-align: right;
+  color: var(--tron-text-darker); /* Make labels slightly less prominent */
+  padding-right: 10px; /* Space between label and value */
+}
+
+/* Style for the value column (second cell in each row) */
+.info tr td:nth-child(2) {
+  text-align: left;
+  min-width: 140px; /* Set a minimum width to prevent jumping */
+  font-weight: bold; /* Make values stand out */
+}
+
+/* Ensure the span inside the value cell behaves correctly */
+.info tr td:nth-child(2) span {
+  display: inline-block; /* Needed if we want to apply width/min-width directly */
+}

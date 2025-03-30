@@ -53,17 +53,39 @@
         <!-- Grid will be generated here by JavaScript -->
       </div>
 
-      <div class="info">
-        <!-- Info like generation count can go here -->
-        <p>Generation: <span id="generationCount">0</span></p>
-        <p>Alive: <span id="alivePercentage">0.0</span>%</p>
-        <p>Born (last step): <span id="stats-born">0</span></p>
-        <p>Died (last step): <span id="stats-died">0</span></p>
-        <p>Oldest (Current): <span id="stats-oldest-current">0</span></p>
-        <p>Oldest (Historic): <span id="stats-oldest-historic">0</span></p>
-      </div>
-    </div>
 
-    <script type="module" src="src/main.js" defer></script>
-  </body>
+            <div class="info">
+              <!-- Info like generation count can go here -->
+              <table>
+                <tbody>
+                  <tr>
+                    <td>Generation:</td>
+                    <td><span id="generationCount">0</span></td>
+                  </tr>
+                  <tr>
+                    <td>Alive:</td>
+                    <td><span id="alivePercentage">0.0</span>%</td>
+                  </tr>
+                  <tr>
+                    <td>Born (Step/Total):</td>
+                    <td><span id="stats-born">0 (Total: 0)</span></td>
+                  </tr>
+                  <tr>
+                    <td>Died (Step/Total):</td>
+                    <td><span id="stats-died">0 (Total: 0)</span></td>
+                  </tr>
+                  <tr>
+                    <td>Oldest (Current):</td>
+                    <td><span id="stats-oldest-current">0</span></td>
+                  </tr>
+                  <tr>
+                    <td>Oldest (Historic):</td>
+                    <td><span id="stats-oldest-historic">0</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <script type="module" src="src/main.js" defer></script>
 </html>
