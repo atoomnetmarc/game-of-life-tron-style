@@ -1,17 +1,27 @@
 "use strict";
 
 import * as gridState from './gridState.js';
-import * as gameLogic from './gameLogic.js';
+// import * as gameLogic from './gameLogic.js'; // Logic moved to worker
 import * as renderer from './renderer.js';
 import { DEFAULT_SPEED } from './config.js';
 
 // Module-level state
 let isRunning = false;
 let simulationSpeed = DEFAULT_SPEED;
-let intervalId = null;
+let timeoutId = null; // Changed from intervalId
 let historicOldestAge = 0; // Track the oldest cell ever seen
 let totalBornCount = 0;    // Track total cells born across all generations
 let totalDiedCount = 0;    // Track total cells died across all generations
+let isCalculating = false; // Flag to prevent overlapping worker requests
+
+// Initialize the Web Worker
+const worker = new Worker('src/gameLogic.worker.js', { type: 'module' });
+
+worker.onerror = (error) => {
+  console.error("Error in gameLogic.worker.js:", error.message, error);
+  // Optionally pause the game or notify the user
+  pauseGame();
+};
 
 // Callback for UI updates (to be set by uiController)
 // Now includes stats parameters
@@ -29,15 +39,43 @@ export function setUICallback(callback) {
 }
 
 /**
- * Executes a single step of the simulation:
- * 1. Computes the next generation.
- * 2. Updates the grid state.
- * 3. Renders the new grid.
- * 4. Updates historic oldest age.
- * 5. Calls the UI update callback with all stats.
+ * Requests the next generation calculation from the worker.
+ * This is called by the setTimeout loop or manually for a single step.
  */
-export function runStep() {
-  const { nextGrid, stats } = gameLogic.computeNextGeneration();
+function requestNextStep() {
+  if (!isRunning && timeoutId === null) { // Ensure manual step doesn't run if already running
+      // Allow manual step even if isCalculating is true from a previous run?
+      // For now, let's prevent overlap entirely.
+      if (isCalculating) {
+          console.warn("Calculation already in progress. Manual step ignored.");
+          return;
+      }
+  } else if (!isRunning) {
+      // If paused, don't request next step automatically
+      return;
+  }
+
+  if (isCalculating) {
+    // console.log("Skipping requestNextStep, calculation already in progress.");
+    return; // Don't send another request if one is pending
+  }
+
+  isCalculating = true;
+  // console.log("Requesting next step from worker...");
+  const currentGrid = gridState.getGrid();
+  const width = gridState.getWidth();
+  const height = gridState.getHeight();
+  worker.postMessage({ grid: currentGrid, width, height });
+}
+
+/**
+ * Handles the result received from the Web Worker.
+ * Updates state, renders, updates UI, and schedules the next step if running.
+ */
+worker.onmessage = (e) => {
+  // console.log("Received result from worker.");
+  const { nextGrid, stats } = e.data;
+
   gridState.updateGrid(nextGrid); // Updates global 'grid' and increments generation count
 
   // Update historic oldest age
@@ -55,28 +93,58 @@ export function runStep() {
   const uiStats = {
     born: stats.born,
     died: stats.died,
-    totalBorn: totalBornCount, // Add total born
-    totalDied: totalDiedCount, // Add total died
+    totalBorn: totalBornCount,
+    totalDied: totalDiedCount,
     oldestCurrent: stats.oldest,
     oldestHistoric: historicOldestAge,
     generation: gridState.getGenerationCount(),
-    alivePercent: gridState.getAliveStats().percentage // Get current percentage
+    alivePercent: gridState.getAliveStats().percentage
   };
   updateUICallback(uiStats); // Update UI elements with all stats
 
-  // console.log(`Advanced to generation ${gridState.getGenerationCount()}`); // Optional logging
+  isCalculating = false; // Mark calculation as complete
+
+  // If the simulation is still set to run, schedule the next step
+  if (isRunning) {
+    // Clear any potentially existing timeout before setting a new one
+    // (Shouldn't be necessary with the isCalculating flag, but safe)
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(requestNextStep, simulationSpeed);
+    // console.log(`Scheduled next step in ${simulationSpeed}ms`);
+  } else {
+      timeoutId = null; // Ensure timeoutId is null when paused
+  }
+};
+
+
+/**
+ * Executes a single manual step of the simulation (when paused).
+ * Sends a request to the worker. The result will be handled by worker.onmessage.
+ */
+export function runStep() {
+  if (isRunning) {
+    console.warn("Manual step called while simulation is running. Ignoring.");
+    return;
+  }
+  if (isCalculating) {
+      console.warn("Calculation already in progress. Manual step ignored.");
+      return;
+  }
+  console.log("Requesting manual step...");
+  requestNextStep(); // Request calculation, result handled by onmessage
 }
 
 /**
- * Starts the simulation interval.
+ * Starts the simulation loop by requesting the first step from the worker.
  */
 export function startGame() {
-  if (isRunning) return; // Prevent multiple intervals
+  if (isRunning) return isRunning; // Already running
 
   isRunning = true;
-  intervalId = setInterval(runStep, simulationSpeed);
+  isCalculating = false; // Reset calculation flag
   console.log(`Simulation started with speed ${simulationSpeed}ms.`);
-  return isRunning; // Return current state
+  requestNextStep(); // Request the first step
+  return isRunning; // Return current state (true)
 }
 
 /**
@@ -137,16 +205,21 @@ export function handleResetGrid() {
 
 
 /**
- * Pauses the simulation interval.
+ * Pauses the simulation loop by clearing the pending timeout.
  */
 export function pauseGame() {
-  if (!isRunning) return; // Already paused
+  if (!isRunning) return isRunning; // Already paused
 
   isRunning = false;
-  clearInterval(intervalId);
-  intervalId = null;
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+  timeoutId = null;
+  // Note: A calculation might still be in progress in the worker when paused.
+  // The result will arrive, update the grid/UI, but won't schedule the *next* step.
+  // isCalculating flag will be reset by the worker response handler.
   console.log("Simulation paused.");
-  return isRunning; // Return current state
+  return isRunning; // Return current state (false)
 }
 
 /**
@@ -162,17 +235,14 @@ export function toggleSimulation() {
 }
 
 /**
- * Updates the simulation speed. If the simulation is running, it restarts the interval.
+ * Updates the simulation speed. The new speed will be used for the next setTimeout schedule.
  * @param {number} newSpeed - The new speed in milliseconds.
  */
 export function setSimulationSpeed(newSpeed) {
-  simulationSpeed = newSpeed;
+  simulationSpeed = Math.max(0, newSpeed); // Ensure speed is not negative
   console.log(`Simulation speed set to ${simulationSpeed}ms.`);
-  if (isRunning) {
-    // Restart the interval with the new speed
-    pauseGame();
-    startGame();
-  }
+  // No need to restart timeout explicitly. The next schedule in worker.onmessage
+  // will automatically use the updated simulationSpeed.
 }
 
 /**
